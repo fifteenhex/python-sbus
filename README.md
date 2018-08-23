@@ -1,5 +1,6 @@
 # sbus_driver_python
 a Python driver for the SBUS protocol
+from [Sokrates80/sbus_driver_micropython](https://github.com/Sokrates80/sbus_driver_micropython)
 
 It supports 16 standard Channels plus 2 digitals. (to be confirmed)
 

@@ -1,12 +1,10 @@
-# sbus_driver_micropython
-a Micropython driver for the SBUS protocol
+# sbus_driver_python
+a Python driver for the SBUS protocol
 
-It supports 16 standard Channels plus 2 digitals.
+It supports 16 standard Channels plus 2 digitals. (to be confirmed)
 
 It has been tested only on the below FrSky receivers:
-- X8R
-- X6R
-- X4R
+- X8R (yes)
 
 An example of usage can be found in the file sbus_driver_example.py
 

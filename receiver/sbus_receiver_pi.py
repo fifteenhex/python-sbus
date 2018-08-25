@@ -6,9 +6,9 @@ derivated from # from Sokrates80/sbus_driver_micropython
 
 import array
 import serial
-import time
 import binascii
 import codecs
+import time
 
 class SBUSReceiver():
 	def __init__(self, _uart_port):
@@ -37,12 +37,8 @@ class SBUSReceiver():
 		self.SBUS_SIGNAL_FAILSAFE = 2
 
 		# Stack Variables initialization
+		self.isReady = True
 		self.lastFrameTime = 0
-		self.validSbusFrame = 0
-		self.lostSbusFrame = 0
-		self.frameIndex = 0
-		self.resyncEvent = 0
-		self.outOfSyncCounter = 0
 		self.sbusBuff = bytearray(1)  # single byte used for sync
 		self.sbusFrame = bytearray(25)  # single SBUS Frame
 		self.sbusChannels = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
@@ -76,18 +72,6 @@ class SBUSReceiver():
 		"""
 		return self.failSafeStatus
 
-	def get_rx_report(self):
-		"""
-		Used to retrieve some stats about the frames decoding
-		:return:  a dictionary containg three information ('Valid Frames','Lost Frames', 'Resync Events')
-		"""
-
-		rep = {}
-		rep['Valid Frames'] = self.validSbusFrame
-		rep['Lost Frames'] = self.lostSbusFrame
-		rep['Resync Events'] = self.resyncEvent
-
-		return rep
 
 	def decode_frame(self):
 
@@ -145,31 +129,35 @@ class SBUSReceiver():
 		we need a least 2 frame size to be sure to find one full frame
 		so we take all the fuffer (and empty it) and read it by the end to
 		catch the last news
-		First find ENDBYTE and loocking FRAMELEN backward to see if it's STARTBYTE
+		First find ENDBYTE and looking FRAMELEN backward to see if it's STARTBYTE
 		"""
-		if self.ser.inWaiting() >= self.SBUS_FRAME_LEN*2 :	#does we have enougth data in the buffer ?
 
+		#does we have enougth data in the buffer and no thread is currently trying in background?
+		if self.ser.inWaiting() >= self.SBUS_FRAME_LEN*2 and self.isReady:
+			self.isReady = False	
 			#so taking all of them
 			tempFrame = self.ser.read(self.ser.inWaiting()) 
+			print "---tmpFrame len", len(tempFrame), "/", self.SBUS_FRAME_LEN
 			# for each char of the buffer frame we looking for the end byte
-			for end in range(0, self.SBUS_FRAME_LEN*2):
-			
+			for end in range(0, self.SBUS_FRAME_LEN):
+				#looking for end byte, remember we working backwards
+				print len(tempFrame)-1-end,
 				if tempFrame[len(tempFrame)-1-end] == self.END_BYTE :
-
-					#looking for start byte by take hit point - Frame size
+					#looking for start from last hit point minus FRAMELEN
+					print len(tempFrame)-end-self.SBUS_FRAME_LEN
 					if tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN] == self.START_BYTE :
-						# if found the frame look good :')
+						# if it is the right char, frame look good :')
+						# remember data arrive in 8E2 packet so it was already parity verified
 
-						# so the frame have to be remap only if it different (cpu time !!)
-						if self.sbusFrame == tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN:len(tempFrame)-1-end]:
-							break
-						else:
-							self.sbusFrame = tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN:len(tempFrame)-1-end]
+						# so the frame have to be remap only if it different (cpu time is precious)
+						lastUpdate = tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN:len(tempFrame)-1-end]
+						if not self.sbusFrame == lastUpdate:
+							self.sbusFrame = lastUpdate
 							self.decode_frame()
 
 						self.lastFrameTime = time.time() # keep trace of the last update
+						self.isReady = True
 						break
-
 
 
 
@@ -177,10 +165,12 @@ class SBUSReceiver():
 # for testing purpose only
 if __name__ == '__main__':
 
+	
+
 	sbus = SBUSReceiver('/dev/ttyS0')
 
 	while True:
-		time.sleep(0.010)
+		time.sleep(0.08)
 		sbus.get_new_data()
-		print sbus.get_failsafe_status(), sbus.get_rx_channels(), sbus.ser.inWaiting(), (time.time()-sbus.lastFrameTime)
+		#print sbus.get_failsafe_status(), sbus.get_rx_channels(), str(sbus.ser.inWaiting()).zfill(4) , (time.time()-sbus.lastFrameTime)
 

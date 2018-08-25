@@ -137,22 +137,12 @@ class SBUSReceiver():
 			self.isReady = False	
 			#so taking all of them
 			tempFrame = self.ser.read(self.ser.inWaiting()) 
-<<<<<<< HEAD
-			print "---tmpFrame len", len(tempFrame), "/", self.SBUS_FRAME_LEN
-			# for each char of the buffer frame we looking for the end byte
-			for end in range(0, self.SBUS_FRAME_LEN):
-				#looking for end byte, remember we working backwards
-				print len(tempFrame)-1-end,
-				if tempFrame[len(tempFrame)-1-end] == self.END_BYTE :
-					#looking for start from last hit point minus FRAMELEN
-					print len(tempFrame)-end-self.SBUS_FRAME_LEN
-=======
 			# for each char of the buffer frame we looking for the end byte
 			for end in range(0, self.SBUS_FRAME_LEN):
 				#looking for end byte, remember we working backwards
 				if tempFrame[len(tempFrame)-1-end] == self.END_BYTE :
 					#looking for start from last hit point minus FRAMELEN
->>>>>>> threading
+
 					if tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN] == self.START_BYTE :
 						# if it is the right char, frame look good :')
 						# remember data arrive in 8E2 packet so it was already parity verified

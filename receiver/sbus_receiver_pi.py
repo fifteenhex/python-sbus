@@ -75,9 +75,11 @@ class SBUSReceiver():
 
 	def decode_frame(self):
 
+		sbusChannelsNew = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
+
 		# TODO: DoubleCheck if it has to be removed
 		for i in range(0, self.SBUS_NUM_CHANNELS - 2):
-			self.sbusChannels[i] = 0
+			sbusChannelsNew[i] = 0
 
 		# counters initialization
 		byte_in_sbus = 1
@@ -88,7 +90,7 @@ class SBUSReceiver():
 		for i in range(0, 175):  # TODO Generalization
 
 			if self.toInt(self.sbusFrame[byte_in_sbus]) & (1 << bit_in_sbus): 
-				self.sbusChannels[ch] |= (1 << bit_in_channel)
+				sbusChannelsNew[ch] |= (1 << bit_in_channel)
 
 			bit_in_sbus += 1
 			bit_in_channel += 1
@@ -106,15 +108,15 @@ class SBUSReceiver():
 
 		# Digital Channel 1
 		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 0):
-			self.sbusChannels[self.SBUS_NUM_CHAN - 2] = 1
+			sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 1
 		else:
-			self.sbusChannels[self.SBUS_NUM_CHAN - 2] = 0
+			sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 0
 
 		# Digital Channel 2
 		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2] ) & (1 << 1):
-			self.sbusChannels[self.SBUS_NUM_CHAN - 1] = 1
+			sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 1
 		else:
-			self.sbusChannels[self.SBUS_NUM_CHAN - 1] = 0
+			sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 0
 
 		# Failsafe
 		self.failSafeStatus = self.SBUS_SIGNAL_OK
@@ -123,6 +125,7 @@ class SBUSReceiver():
 		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 3):
 			self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
+		self.sbusChannels = sbusChannelsNew
 
 	def get_new_data(self):
 		"""
@@ -136,7 +139,7 @@ class SBUSReceiver():
 		if self.ser.inWaiting() >= self.SBUS_FRAME_LEN*2 and self.isReady:
 			self.isReady = False	
 			#so taking all of them
-			tempFrame = self.ser.read(self.ser.inWaiting()) 
+			tempFrame = self.ser.read(self.ser.inWaiting())
 			# for each char of the buffer frame we looking for the end byte
 			for end in range(0, self.SBUS_FRAME_LEN):
 				#looking for end byte, remember we working backwards

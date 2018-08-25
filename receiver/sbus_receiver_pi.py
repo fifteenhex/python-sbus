@@ -6,9 +6,9 @@ derivated from # from Sokrates80/sbus_driver_micropython
 
 import array
 import serial
-import time
 import binascii
 import codecs
+import time
 
 class SBUSReceiver():
 	def __init__(self, _uart_port):
@@ -21,7 +21,8 @@ class SBUSReceiver():
 			parity=serial.PARITY_EVEN,
 			stopbits=serial.STOPBITS_TWO,
 			bytesize=serial.EIGHTBITS,
-			timeout = 3,
+			timeout = 0,
+
 		)
 
 		# constants
@@ -36,16 +37,11 @@ class SBUSReceiver():
 		self.SBUS_SIGNAL_FAILSAFE = 2
 
 		# Stack Variables initialization
+		self.isReady = True
 		self.lastFrameTime = 0
-		self.validSbusFrame = 0
-		self.lostSbusFrame = 0
-		self.frameIndex = 0
-		self.resyncEvent = 0
-		self.outOfSyncCounter = 0
 		self.sbusBuff = bytearray(1)  # single byte used for sync
 		self.sbusFrame = bytearray(25)  # single SBUS Frame
 		self.sbusChannels = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
-		self.isSync = False
 		self.startByteFound = False
 		self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
@@ -76,18 +72,6 @@ class SBUSReceiver():
 		"""
 		return self.failSafeStatus
 
-	def get_rx_report(self):
-		"""
-		Used to retrieve some stats about the frames decoding
-		:return:  a dictionary containg three information ('Valid Frames','Lost Frames', 'Resync Events')
-		"""
-
-		rep = {}
-		rep['Valid Frames'] = self.validSbusFrame
-		rep['Lost Frames'] = self.lostSbusFrame
-		rep['Resync Events'] = self.resyncEvent
-
-		return rep
 
 	def decode_frame(self):
 
@@ -140,57 +124,37 @@ class SBUSReceiver():
 			self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
 
-	def get_sync(self):
-
-		if self.ser.inWaiting() > 0:
-			if self.startByteFound:
-				if self.frameIndex == (self.SBUS_FRAME_LEN - 1):
-					self.sbusBuff = self.ser.read()  # end of frame byte
-					if self.sbusBuff[0] == self.END_BYTE:  
-						self.startByteFound = False
-						self.isSync = True
-						self.frameIndex = 0
-				else:
-
-					self.sbusBuff = self.ser.read()  # keep reading 1 byte until the end of frame
-					self.frameIndex += 1
-			else:
-				self.frameIndex = 0
-				self.sbusBuff = self.ser.read()  # read 1 byte
-				if self.sbusBuff[0] == self.START_BYTE:  # looking for start byte
-					self.startByteFound = True
-					self.frameIndex += 1
-
 	def get_new_data(self):
 		"""
-		This function must be called periodically according to the specific SBUS implementation in order to update
-		the channels values.
-		For FrSky the period is 300us.
+		we need a least 2 frame size to be sure to find one full frame
+		so we take all the fuffer (and empty it) and read it by the end to
+		catch the last news
+		First find ENDBYTE and looking FRAMELEN backward to see if it's STARTBYTE
 		"""
 
-		if self.isSync:
-			if self.ser.inWaiting() >= self.SBUS_FRAME_LEN:
-				self.sbusFrame = self.ser.read(self.SBUS_FRAME_LEN)  # read the whole frame
-				if (self.sbusFrame[0] == self.START_BYTE and self.sbusFrame[self.SBUS_FRAME_LEN - 1] == self.END_BYTE):  # TODO: Change to use constant var value
-					self.validSbusFrame += 1
-					self.outOfSyncCounter = 0
-					self.decode_frame()
+		#does we have enougth data in the buffer and no thread is currently trying in background?
+		if self.ser.inWaiting() >= self.SBUS_FRAME_LEN*2 and self.isReady:
+			self.isReady = False	
+			#so taking all of them
+			tempFrame = self.ser.read(self.ser.inWaiting()) 
+			# for each char of the buffer frame we looking for the end byte
+			for end in range(0, self.SBUS_FRAME_LEN):
+				#looking for end byte, remember we working backwards
+				if tempFrame[len(tempFrame)-1-end] == self.END_BYTE :
+					#looking for start from last hit point minus FRAMELEN
+					if tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN] == self.START_BYTE :
+						# if it is the right char, frame look good :')
+						# remember data arrive in 8E2 packet so it was already parity verified
 
-					self.lastFrameTime = time.time() # keep trace of the last update
-					self.ser.reset_input_buffer() #have to flush buffer cause X8R @ 1M baud will overflow it too quick
-					self.ser.isSync = False #and have to resync
-				else:
-					self.lostSbusFrame += 1
-					self.outOfSyncCounter += 1
+						# so the frame have to be remap only if it different (cpu time is precious)
+						lastUpdate = tempFrame[len(tempFrame)-end-self.SBUS_FRAME_LEN:len(tempFrame)-1-end]
+						if not self.sbusFrame == lastUpdate:
+							self.sbusFrame = lastUpdate
+							self.decode_frame()
 
-				if self.outOfSyncCounter > self.OUT_OF_SYNC_THD:
-					self.isSync = False
-					self.resyncEvent += 1
-			
-		else:
-			self.get_sync()
-
-
+						self.lastFrameTime = time.time() # keep trace of the last update
+						self.isReady = True
+						break
 
 
 
@@ -198,14 +162,12 @@ class SBUSReceiver():
 # for testing purpose only
 if __name__ == '__main__':
 
+	
+
 	sbus = SBUSReceiver('/dev/ttyS0')
 
-	timer1 = 0
-
 	while True:
+		time.sleep(0.08)
 		sbus.get_new_data()
-		if time.time() - timer1 > 0.005:
-			a = sbus.get_rx_channels()
-			if a[0] >= 512 :
-				print sbus.get_rx_channels(), sbus.ser.inWaiting(), (time.time()-sbus.lastFrameTime)
-			timer1 = time.time()
+		#print sbus.get_failsafe_status(), sbus.get_rx_channels(), str(sbus.ser.inWaiting()).zfill(4) , (time.time()-sbus.lastFrameTime)
+

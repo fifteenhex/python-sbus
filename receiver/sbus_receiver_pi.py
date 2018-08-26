@@ -1,6 +1,9 @@
 """
-derivated from # from Sokrates80/sbus_driver_micropython
-
+derivated from # from
+	Sokrates80/sbus_driver_micropython
+	and derivated from https://os.mbed.com/users/Digixx/code/SBUS-Library_16channel/file/83e415034198/FutabaSBUS/FutabaSBUS.cpp/
+	https://os.mbed.com/users/Digixx/notebook/futaba-s-bus-controlled-by-mbed/
+	https://www.ordinoscope.net/index.php/Electronique/Protocoles/SBUS
 """
 
 
@@ -46,8 +49,7 @@ class SBUSReceiver():
 		self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
 
-	def toInt(self, _from):
-		return int(codecs.encode(_from, 'hex'), 16)
+
 
 
 	def get_rx_channels(self):
@@ -75,57 +77,104 @@ class SBUSReceiver():
 
 	def decode_frame(self):
 
-		sbusChannelsNew = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
-
-		# TODO: DoubleCheck if it has to be removed
-		for i in range(0, self.SBUS_NUM_CHANNELS - 2):
-			sbusChannelsNew[i] = 0
-
-		# counters initialization
-		byte_in_sbus = 1
-		bit_in_sbus = 0
-		ch = 0
-		bit_in_channel = 0
-
-		for i in range(0, 175):  # TODO Generalization
-
-			if self.toInt(self.sbusFrame[byte_in_sbus]) & (1 << bit_in_sbus): 
-				sbusChannelsNew[ch] |= (1 << bit_in_channel)
-
-			bit_in_sbus += 1
-			bit_in_channel += 1
-
-			if bit_in_sbus == 8:
-				bit_in_sbus = 0
-				byte_in_sbus += 1
-
-			if bit_in_channel == 11:
-				bit_in_channel = 0
-				ch += 1
+		def toInt(_from):
+			return int(codecs.encode(_from, 'hex'), 16)
 
 
-		# Decode Digitals Channels
+		self.sbusChannels[0]  = ((toInt(self.sbusFrame[1])    	|toInt(self.sbusFrame[2])<<8)									& 0x07FF);
+		self.sbusChannels[1]  = ((toInt(self.sbusFrame[2])>>3 	|toInt(self.sbusFrame[3])<<5)									& 0x07FF);
+		self.sbusChannels[2]  = ((toInt(self.sbusFrame[3])>>6 	|toInt(self.sbusFrame[4])<<2 |toInt(self.sbusFrame[5])<<10)		& 0x07FF);
+		self.sbusChannels[3]  = ((toInt(self.sbusFrame[5])>>1 	|toInt(self.sbusFrame[6])<<7)									& 0x07FF);
+		self.sbusChannels[4]  = ((toInt(self.sbusFrame[6])>>4 	|toInt(self.sbusFrame[7])<<4)									& 0x07FF);
+		self.sbusChannels[5]  = ((toInt(self.sbusFrame[7])>>7 	|toInt(self.sbusFrame[8])<<1 |toInt(self.sbusFrame[9])<<9)   	& 0x07FF);
+		self.sbusChannels[6]  = ((toInt(self.sbusFrame[9])>>2 	|toInt(self.sbusFrame[10])<<6)									& 0x07FF);
+		self.sbusChannels[7]  = ((toInt(self.sbusFrame[10])>>5	|toInt(self.sbusFrame[11])<<3)									& 0x07FF);
+		self.sbusChannels[8]  = ((toInt(self.sbusFrame[12])   	|toInt(self.sbusFrame[13])<<8)									& 0x07FF);
+		self.sbusChannels[9]  = ((toInt(self.sbusFrame[13])>>3	|toInt(self.sbusFrame[14])<<5)									& 0x07FF);
+		self.sbusChannels[10] = ((toInt(self.sbusFrame[14])>>6	|toInt(self.sbusFrame[15])<<2|toInt(self.sbusFrame[16])<<10)	& 0x07FF);
+		self.sbusChannels[11] = ((toInt(self.sbusFrame[16])>>1	|toInt(self.sbusFrame[17])<<7)									& 0x07FF);
+		self.sbusChannels[12] = ((toInt(self.sbusFrame[17])>>4	|toInt(self.sbusFrame[18])<<4)									& 0x07FF);
+		self.sbusChannels[13] = ((toInt(self.sbusFrame[18])>>7	|toInt(self.sbusFrame[19])<<1|toInt(self.sbusFrame[20])<<9)		& 0x07FF);
+		self.sbusChannels[14] = ((toInt(self.sbusFrame[20])>>2	|toInt(self.sbusFrame[21])<<6)									& 0x07FF);
+		self.sbusChannels[15] = ((toInt(self.sbusFrame[21])>>5	|toInt(self.sbusFrame[22])<<3)									& 0x07FF);
 
-		# Digital Channel 1
-		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 0):
-			sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 1
+		#to be tested, No 17 & 18 channel on taranis X8R
+		if toInt(self.sbusFrame[23])  & 0x0001 :
+			self.sbusChannels[16] = 2047
 		else:
-			sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 0
-
-		# Digital Channel 2
-		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2] ) & (1 << 1):
-			sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 1
+			self.sbusChannels[16] = 0
+		#to be tested, No 17 & 18 channel on taranis X8R
+		if (toInt(self.sbusFrame[23]) >> 1) & 0x0001 :
+			self.sbusChannels[17] = 2047
 		else:
-			sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 0
+			self.sbusChannels[17] = 0
 
-		# Failsafe
+		#Failsafe
 		self.failSafeStatus = self.SBUS_SIGNAL_OK
-		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 2):
+		if toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 2):
 			self.failSafeStatus = self.SBUS_SIGNAL_LOST
-		if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 3):
+		if toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 3):
 			self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
-		self.sbusChannels = sbusChannelsNew
+		
+		#sbusChannelsNew = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
+
+		# # Clean up sbus chanel. Could be removed now cause we use a clean empty array at the beg
+		# for i in range(0, self.SBUS_NUM_CHANNELS - 2):
+		# 	sbusChannelsNew[i] = 0
+
+		# # counters initialization
+		# byte_in_sbus = 1
+		# bit_in_sbus = 0
+		# ch = 0
+		# bit_in_channel = 0
+
+		# #print "--------"
+
+		# t = time.time()
+		# print "0",
+		# for i in range(0, 175):  
+
+
+		# 	if self.toInt(self.sbusFrame[byte_in_sbus]) & (1 << bit_in_sbus): 
+		# 		sbusChannelsNew[ch] |= (1 << bit_in_channel)
+
+
+		# 	bit_in_sbus += 1
+		# 	bit_in_channel += 1
+
+		# 	if bit_in_sbus == 8:
+		# 		bit_in_sbus = 0
+		# 		byte_in_sbus += 1
+
+		# 	if bit_in_channel == 11:
+		# 		bit_in_channel = 0
+		# 		ch += 1
+
+
+		# # # Decode Digitals Channels
+
+		# # Digital Channel 1
+		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 0):
+		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 1
+		# else:
+		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 0
+
+		# # Digital Channel 2
+		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2] ) & (1 << 1):
+		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 1
+		# else:
+		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 0
+
+		# # Failsafe
+		# self.failSafeStatus = self.SBUS_SIGNAL_OK
+		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 2):
+		# 	self.failSafeStatus = self.SBUS_SIGNAL_LOST
+		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 3):
+		# 	self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
+
+		# self.sbusChannels = sbusChannelsNew
+
 
 	def get_new_data(self):
 		"""
@@ -136,6 +185,7 @@ class SBUSReceiver():
 		"""
 
 		#does we have enougth data in the buffer and no thread is currently trying in background?
+		t = time.time()
 		if self.ser.inWaiting() >= self.SBUS_FRAME_LEN*2 and self.isReady:
 			self.isReady = False	
 			#so taking all of them
@@ -158,6 +208,7 @@ class SBUSReceiver():
 
 						self.lastFrameTime = time.time() # keep trace of the last update
 						self.isReady = True
+						
 						break
 
 
@@ -171,7 +222,7 @@ if __name__ == '__main__':
 	sbus = SBUSReceiver('/dev/ttyS0')
 
 	while True:
-		time.sleep(0.08)
+		time.sleep(0.005)
 		sbus.get_new_data()
-		#print sbus.get_failsafe_status(), sbus.get_rx_channels(), str(sbus.ser.inWaiting()).zfill(4) , (time.time()-sbus.lastFrameTime)
+		print sbus.get_failsafe_status(), sbus.get_rx_channels(), str(sbus.ser.inWaiting()).zfill(4) , (time.time()-sbus.lastFrameTime)
 

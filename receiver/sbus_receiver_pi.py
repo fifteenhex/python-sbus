@@ -45,7 +45,6 @@ class SBUSReceiver():
 		self.sbusBuff = bytearray(1)  # single byte used for sync
 		self.sbusFrame = bytearray(25)  # single SBUS Frame
 		self.sbusChannels = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
-		self.startByteFound = False
 		self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
 
@@ -76,6 +75,9 @@ class SBUSReceiver():
 
 
 	def decode_frame(self):
+
+		# each values are in beetween two or tree differentes bytes . so look the mess to catch it !
+		# Thanks futaba to make this.
 
 		def toInt(_from):
 			return int(codecs.encode(_from, 'hex'), 16)
@@ -116,65 +118,6 @@ class SBUSReceiver():
 		if toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 3):
 			self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
-		
-		#sbusChannelsNew = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
-
-		# # Clean up sbus chanel. Could be removed now cause we use a clean empty array at the beg
-		# for i in range(0, self.SBUS_NUM_CHANNELS - 2):
-		# 	sbusChannelsNew[i] = 0
-
-		# # counters initialization
-		# byte_in_sbus = 1
-		# bit_in_sbus = 0
-		# ch = 0
-		# bit_in_channel = 0
-
-		# #print "--------"
-
-		# t = time.time()
-		# print "0",
-		# for i in range(0, 175):  
-
-
-		# 	if self.toInt(self.sbusFrame[byte_in_sbus]) & (1 << bit_in_sbus): 
-		# 		sbusChannelsNew[ch] |= (1 << bit_in_channel)
-
-
-		# 	bit_in_sbus += 1
-		# 	bit_in_channel += 1
-
-		# 	if bit_in_sbus == 8:
-		# 		bit_in_sbus = 0
-		# 		byte_in_sbus += 1
-
-		# 	if bit_in_channel == 11:
-		# 		bit_in_channel = 0
-		# 		ch += 1
-
-
-		# # # Decode Digitals Channels
-
-		# # Digital Channel 1
-		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 0):
-		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 1
-		# else:
-		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 2] = 0
-
-		# # Digital Channel 2
-		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2] ) & (1 << 1):
-		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 1
-		# else:
-		# 	sbusChannelsNew[self.SBUS_NUM_CHAN - 1] = 0
-
-		# # Failsafe
-		# self.failSafeStatus = self.SBUS_SIGNAL_OK
-		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 2):
-		# 	self.failSafeStatus = self.SBUS_SIGNAL_LOST
-		# if self.toInt(self.sbusFrame[self.SBUS_FRAME_LEN - 2]) & (1 << 3):
-		# 	self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
-
-		# self.sbusChannels = sbusChannelsNew
-
 
 	def get_new_data(self):
 		"""
@@ -208,7 +151,6 @@ class SBUSReceiver():
 
 						self.lastFrameTime = time.time() # keep trace of the last update
 						self.isReady = True
-						
 						break
 
 
@@ -217,12 +159,18 @@ class SBUSReceiver():
 # for testing purpose only
 if __name__ == '__main__':
 
-	
-
 	sbus = SBUSReceiver('/dev/ttyS0')
 
 	while True:
 		time.sleep(0.005)
+
+		# Call sbus.get_new_data() every about 7 to 10 ms.
+		# to be sure to not calling it to much verify your serial.inWaiting() size of your SBUSReceiver instance.
+		# if beetween call your serial is growing to much (> 50) you can call it more often.
+		# if it raise you < 50 multiples times in row, you calling it too soon.
 		sbus.get_new_data()
+
+		#anywere in your code you can call sbus.get_rx_channels() to get all data or sbus.get_rx_channels()[n] to get value of n channel
+		#or get_rx_channel(self, num_ch) to get channel you whant.
 		print sbus.get_failsafe_status(), sbus.get_rx_channels(), str(sbus.ser.inWaiting()).zfill(4) , (time.time()-sbus.lastFrameTime)
 

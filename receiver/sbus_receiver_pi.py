@@ -1,11 +1,15 @@
+#!/usr/bin/env python
+#-*- coding: utf-8 -*-
+
 """
-derivated from # from
-	Sokrates80/sbus_driver_micropython
-	and derivated from https://os.mbed.com/users/Digixx/code/SBUS-Library_16channel/file/83e415034198/FutabaSBUS/FutabaSBUS.cpp/
+derivated from
+	Sokrates80/sbus_driver_micropython git hub
+	https://os.mbed.com/users/Digixx/code/SBUS-Library_16channel/file/83e415034198/FutabaSBUS/FutabaSBUS.cpp/
 	https://os.mbed.com/users/Digixx/notebook/futaba-s-bus-controlled-by-mbed/
 	https://www.ordinoscope.net/index.php/Electronique/Protocoles/SBUS
 """
 
+#dsimonet
 
 import array
 import serial
@@ -15,9 +19,8 @@ import time
 
 class SBUSReceiver():
 	def __init__(self, _uart_port):
-		#self.sbus = serial.Serial(uart_port, 105000)
-		#self.sbus.init(100000, bits=8, parity=0, stop=2, timeout_char=3, read_buf_len=250)
 
+		#init serial of raspberry pi
 		self.ser = serial.Serial(
 			port=_uart_port,#port='/dev/serial0',
 			baudrate = 100000,
@@ -25,12 +28,11 @@ class SBUSReceiver():
 			stopbits=serial.STOPBITS_TWO,
 			bytesize=serial.EIGHTBITS,
 			timeout = 0,
-
 		)
 
 		# constants
-		self.START_BYTE = b'\x0f' # 15 in ascii
-		self.END_BYTE = b'\x00' # Nul in ascii
+		self.START_BYTE = b'\x0f'
+		self.END_BYTE = b'\x00'
 		self.SBUS_FRAME_LEN = 25
 		self.SBUS_NUM_CHAN = 18
 		self.OUT_OF_SYNC_THD = 10
@@ -46,9 +48,6 @@ class SBUSReceiver():
 		self.sbusFrame = bytearray(25)  # single SBUS Frame
 		self.sbusChannels = array.array('H', [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])  # RC Channels
 		self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
-
-
-
 
 
 	def get_rx_channels(self):
@@ -81,7 +80,6 @@ class SBUSReceiver():
 
 		def toInt(_from):
 			return int(codecs.encode(_from, 'hex'), 16)
-
 
 		self.sbusChannels[0]  = ((toInt(self.sbusFrame[1])    	|toInt(self.sbusFrame[2])<<8)									& 0x07FF);
 		self.sbusChannels[1]  = ((toInt(self.sbusFrame[2])>>3 	|toInt(self.sbusFrame[3])<<5)									& 0x07FF);

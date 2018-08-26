@@ -126,7 +126,6 @@ class SBUSReceiver():
 		"""
 
 		#does we have enougth data in the buffer and no thread is currently trying in background?
-		t = time.time()
 		if self.ser.inWaiting() >= self.SBUS_FRAME_LEN*2 and self.isReady:
 			self.isReady = False	
 			#so taking all of them

@@ -117,7 +117,7 @@ class SBUSReceiver():
 			self.failSafeStatus = self.SBUS_SIGNAL_FAILSAFE
 
 
-	def get_new_data(self):
+	def update(self):
 		"""
 		we need a least 2 frame size to be sure to find one full frame
 		so we take all the fuffer (and empty it) and read it by the end to
@@ -165,7 +165,7 @@ if __name__ == '__main__':
 		# to be sure to not calling it to much verify your serial.inWaiting() size of your SBUSReceiver instance.
 		# if beetween call your serial is growing to much (> 50) you can call it more often.
 		# if it raise you < 50 multiples times in row, you calling it too soon.
-		sbus.get_new_data()
+		sbus.update()
 
 		#anywere in your code you can call sbus.get_rx_channels() to get all data or sbus.get_rx_channels()[n] to get value of n channel
 		#or get_rx_channel(self, num_ch) to get channel you whant.

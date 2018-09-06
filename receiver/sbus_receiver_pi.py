@@ -18,11 +18,11 @@ import codecs
 import time
 
 class SBUSReceiver():
-	def __init__(self, _uart_port):
+	def __init__(self, _uart_port='/dev/ttyS0'):
 
 		#init serial of raspberry pi
 		self.ser = serial.Serial(
-			port=_uart_port,#port='/dev/serial0',
+			port=_uart_port,
 			baudrate = 100000,
 			parity=serial.PARITY_EVEN,
 			stopbits=serial.STOPBITS_TWO,
@@ -55,6 +55,7 @@ class SBUSReceiver():
 		Used to retrieve the last SBUS channels values reading
 		:return:  an array of 18 unsigned short elements containing 16 standard channel values + 2 digitals (ch 17 and 18)
 		"""
+
 		return self.sbusChannels
 
 	def get_rx_channel(self, num_ch):
@@ -63,6 +64,7 @@ class SBUSReceiver():
 		:param: num_ch: the channel which to retrieve the value for
 		:return:  a short value containing
 		"""
+
 		return self.sbusChannels[num_ch]
 
 	def get_failsafe_status(self):
@@ -70,6 +72,7 @@ class SBUSReceiver():
 		Used to retrieve the last FAILSAFE status
 		:return:  a short value containing
 		"""
+
 		return self.failSafeStatus
 
 

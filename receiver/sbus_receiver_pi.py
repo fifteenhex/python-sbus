@@ -10,10 +10,8 @@ Based on:
 """
 
 import asyncio
-import array
 import serial
 import serial_asyncio
-import time
 
 
 class SBUSReceiver:
@@ -26,22 +24,21 @@ class SBUSReceiver:
         def __init__(self):
             super().__init__()
             self._in_frame = False
-            self._frame = bytearray()
             self.transport = None
+            self._frame = bytearray()
             self.frames = asyncio.Queue()
 
         def connection_made(self, transport):
             self.transport = transport
-            print('port opened', transport)
 
         def data_received(self, data):
             for b in data:
                 if self._in_frame:
                     self._frame.append(b)
                     if len(self._frame) == SBUSReceiver.SBUSFramer.SBUS_FRAME_LEN:
-                        print(self._frame.hex())
                         decoded_frame = SBUSReceiver.SBUSFrame(self._frame)
-                        self.frames.put(decoded_frame)
+                        # print(decoded_frame)
+                        asyncio.run_coroutine_threadsafe(self.frames.put(decoded_frame), asyncio.get_running_loop())
                         self._in_frame = False
                 else:
                     if b == SBUSReceiver.SBUSFramer.START_BYTE:
@@ -50,7 +47,6 @@ class SBUSReceiver:
                         self._frame.append(b)
 
         def connection_lost(self, exc):
-            print('port closed')
             asyncio.get_event_loop().stop()
 
     class SBUSFrame:
@@ -63,26 +59,11 @@ class SBUSReceiver:
         def __init__(self, frame):
             self.sbusChannels = [None] * SBUSReceiver.SBUSFrame.SBUS_NUM_CHANNELS
 
-            self.sbusChannels[0] = (((frame[1]) | (frame[2]) << 8) & 0x07FF)
-            self.sbusChannels[1] = (((frame[2]) >> 3 | (frame[3]) << 5) & 0x07FF)
-            self.sbusChannels[2] = (((frame[3]) >> 6 | (frame[4]) << 2 | (
-                frame[5]) << 10) & 0x07FF)
-            self.sbusChannels[3] = (((frame[5]) >> 1 | (frame[6]) << 7) & 0x07FF)
-            self.sbusChannels[4] = (((frame[6]) >> 4 | (frame[7]) << 4) & 0x07FF)
-            self.sbusChannels[5] = (((frame[7]) >> 7 | (frame[8]) << 1 | (
-                frame[9]) << 9) & 0x07FF)
-            self.sbusChannels[6] = (((frame[9]) >> 2 | (frame[10]) << 6) & 0x07FF)
-            self.sbusChannels[7] = (((frame[10]) >> 5 | (frame[11]) << 3) & 0x07FF)
-            self.sbusChannels[8] = (((frame[12]) | (frame[13]) << 8) & 0x07FF)
-            self.sbusChannels[9] = (((frame[13]) >> 3 | (frame[14]) << 5) & 0x07FF)
-            self.sbusChannels[10] = (((frame[14]) >> 6 | (frame[15]) << 2 | (
-                frame[16]) << 10) & 0x07FF)
-            self.sbusChannels[11] = (((frame[16]) >> 1 | (frame[17]) << 7) & 0x07FF)
-            self.sbusChannels[12] = (((frame[17]) >> 4 | (frame[18]) << 4) & 0x07FF)
-            self.sbusChannels[13] = (((frame[18]) >> 7 | (frame[19]) << 1 | (
-                frame[20]) << 9) & 0x07FF)
-            self.sbusChannels[14] = (((frame[20]) >> 2 | (frame[21]) << 6) & 0x07FF)
-            self.sbusChannels[15] = (((frame[21]) >> 5 | (frame[22]) << 3) & 0x07FF)
+            channel_sum = int.from_bytes(frame[1:23], byteorder="little")
+
+            for ch in range(0, 16):
+                self.sbusChannels[ch] = channel_sum & 0x7ff
+                channel_sum = channel_sum >> 11
 
             # to be tested, No 17 & 18 channel on taranis X8R
             if (frame[23]) & 0x0001:
@@ -127,31 +108,35 @@ class SBUSReceiver:
 
             return self.failSafeStatus
 
-    def __init__(self, _uart_port='/dev/ttyUSB0'):
-        serial_coro = serial_asyncio.create_serial_connection(asyncio.get_running_loop(),
-                                                              SBUSReceiver.SBUSFramer,
-                                                              _uart_port,
-                                                              baudrate=100000,
-                                                              parity=serial.PARITY_EVEN,
-                                                              stopbits=serial.STOPBITS_TWO,
-                                                              bytesize=serial.EIGHTBITS)
-        # self._framer = protocol
-        self.serial_task = asyncio.create_task(serial_coro)
+        def __repr__(self):
+            return ",".join(str(ch) for ch in self.sbusChannels)
+
+    def __init__(self):
+        self._transport = None
+        self._protocol = None
+
+    @staticmethod
+    async def create(port='/dev/ttyUSB0'):
+        receiver = SBUSReceiver()
+        receiver._transport, receiver._protocol = await serial_asyncio.create_serial_connection(
+            asyncio.get_running_loop(),
+            SBUSReceiver.SBUSFramer,
+            port,
+            baudrate=100000,
+            parity=serial.PARITY_EVEN,
+            stopbits=serial.STOPBITS_TWO,
+            bytesize=serial.EIGHTBITS)
+        return receiver
 
     async def get_frame(self):
-        # return self._framer.frames.get()
-        pass
+        return await self._protocol.frames.get()
 
 
 async def main():
-    sbus = SBUSReceiver('/dev/ttyUSB0')
-    frame = await sbus.get_frame()
-    # sbus.update()
-
-    # anywhere in your code you can call sbus.get_rx_channels() to get all data or sbus.get_rx_channels()[n] to
-    # get value of n channel or get_rx_channel(self, num_ch) to get channel you want.
-    # print(sbus.get_failsafe_status(), sbus.get_rx_channels(), str(sbus.ser.inWaiting()).zfill(4), (
-    #        time.time() - sbus.lastFrameTime), sbus.frameCount)
+    sbus = await SBUSReceiver.create("/dev/ttyUSB2")
+    while True:
+        frame = await sbus.get_frame()
+        print(frame)
 
 
 if __name__ == '__main__':

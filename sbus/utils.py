@@ -46,3 +46,10 @@ def channel_to_deflection(value, low=200, high=1700, deadband=100):
         return 1
     else:
         return 0
+
+
+def mixer_steering(rudder):
+    if rudder > 0:
+        return abs(rudder), 0
+    else:
+        return 0, abs(rudder)

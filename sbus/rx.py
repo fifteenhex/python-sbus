@@ -40,6 +40,8 @@ class SBUSReceiver:
                         # print(decoded_frame)
                         asyncio.run_coroutine_threadsafe(self.frames.put(decoded_frame), asyncio.get_running_loop())
                         self._in_frame = False
+                        del self.frames
+                        self.frames = asyncio.Queue()
                 else:
                     if b == SBUSReceiver.SBUSFramer.START_BYTE:
                         self._in_frame = True
